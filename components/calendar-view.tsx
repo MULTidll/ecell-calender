@@ -1,5 +1,5 @@
 "use client"
-
+import { io, Socket } from "socket.io-client"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,24 +8,6 @@ import { EventDialog } from "@/components/event-dialog"
 import { EventDetails } from "@/components/event-details"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-
-// Mock data for initial events
-const initialEvents = [
-  {
-    id: "1",
-    title: "Startup Workshop",
-    date: new Date(2025, 4, 20),
-    time: "14:00",
-    description: "Learn how to build your startup from scratch.",
-  },
-  {
-    id: "2",
-    title: "Pitch Competition",
-    date: new Date(2025, 4, 25),
-    time: "16:00",
-    description: "Present your business idea and win prizes.",
-  },
-]
 
 type Event = {
   id: string
@@ -37,7 +19,7 @@ type Event = {
 
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [events, setEvents] = useState<Event[]>(initialEvents)
+  const [events, setEvents] = useState<Event[]>([])
   const [isAdmin, setIsAdmin] = useState(false) // In a real app, this would come from auth
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
@@ -45,26 +27,40 @@ export function CalendarView() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const { toast } = useToast()
 
-  // Check if user is admin
   useEffect(() => {
-    // Check localStorage for admin status
-    const adminStatus = localStorage.getItem("isAdmin") === "true"
-    setIsAdmin(adminStatus)
+    fetch("/api/events")
+      .then(res => res.json())
+      .then(data => {
+        setEvents(
+          data.map((event: any) => ({
+            ...event,
+            id: event._id, 
+            date: new Date(event.date),
+          }))
+        )
+      })
+      .catch(() => setEvents([]))
+    setIsAdmin(localStorage.getItem("isAdmin") === "true")
 
-    // Add event listener to detect changes in localStorage
-    const handleStorageChange = () => {
-      setIsAdmin(localStorage.getItem("isAdmin") === "true")
-    }
+      const socket: Socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
+      socket.on("eventsUpdated", () => {
+        fetch("/api/events")
+          .then(res => res.json())
+          .then(data => {
+            setEvents(
+              data.map((event: any) => ({
+                ...event,
+                id: event._id, 
+                date: new Date(event.date),
+              }))
+            )
+          })
+          .catch(() => setEvents([]))
+      })
 
-    window.addEventListener("storage", handleStorageChange)
-
-    // Also listen for a custom event that we'll dispatch from login-button.tsx
-    window.addEventListener("adminStatusChanged", handleStorageChange)
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange)
-      window.removeEventListener("adminStatusChanged", handleStorageChange)
-    }
+      return () => {
+        socket.disconnect()
+      }
   }, [])
 
   const handlePrevMonth = () => {
@@ -75,27 +71,50 @@ export function CalendarView() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
   }
 
-  const handleAddEvent = (event: Omit<Event, "id">) => {
-    const newEvent = {
-      ...event,
-      id: Math.random().toString(36).substring(2, 9),
-    }
-    setEvents([...events, newEvent])
-    toast({
-      title: "Event added",
-      description: `${event.title} has been added to the calendar.`,
-    })
+    const handleAddEvent = async (event: Omit<Event, "id">) => {
+      const res = await fetch("/api/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(event),
+      })
+      const newEvent = await res.json()
+      setEvents([
+        ...events,
+        {
+          ...newEvent,
+          id: newEvent._id || newEvent.id,
+          date: new Date(newEvent.date),
+        },
+      ])
+      toast({
+        title: "Event added",
+        description: `${event.title} has been added to the calendar.`,
+      })
   }
 
-  const handleUpdateEvent = (updatedEvent: Event) => {
-    setEvents(events.map((event) => (event.id === updatedEvent.id ? updatedEvent : event)))
+
+  const handleUpdateEvent = async (updatedEvent: Event) => {
+    const res = await fetch(`/api/events/${updatedEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedEvent),
+    })
+    const event = await res.json()
+    setEvents(
+      events.map((e) =>
+        e.id === (event._id || event.id)
+          ? { ...event, id: event._id || event.id, date: new Date(event.date) }
+          : e
+      )
+    )
     toast({
       title: "Event updated",
       description: `${updatedEvent.title} has been updated.`,
     })
   }
 
-  const handleDeleteEvent = (eventId: string) => {
+  const handleDeleteEvent = async (eventId: string) => {
+    await fetch(`/api/events/${eventId}`, { method: "DELETE" })
     setEvents(events.filter((event) => event.id !== eventId))
     setIsDetailsOpen(false)
     toast({
@@ -256,8 +275,11 @@ export function CalendarView() {
                         {day.getDate()}
                       </div>
                       <div className="mt-1 space-y-1">
-                        {eventsForDay.map((event) => (
-                          <div key={event.id} className="rounded bg-primary/10 px-1 py-0.5 text-xs font-medium">
+                        {eventsForDay.map((event, idx) => (
+                          <div
+                            key={event.id || `${event.title}-${event.time}-${idx}`}
+                            className="rounded bg-primary/10 px-1 py-0.5 text-xs font-medium"
+                          >
                             {event.title} • {event.time}
                           </div>
                         ))}
