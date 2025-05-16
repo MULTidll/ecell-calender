@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, createContext } from 'react';
 
 export const AuthContext = createContext();
@@ -31,6 +33,7 @@ export function AuthProvider({ children }) {
     const data = await res.json();
     if (data.success) {
       await checkAdmin();
+      window.location.reload();
       return true;
     }
     return false;
@@ -38,7 +41,8 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     await fetch('/api/logout', { method: 'POST' });
-    await checkAdmin(); 
+    await checkAdmin();
+    window.location.reload();
   };
 
   return (

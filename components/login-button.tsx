@@ -1,8 +1,7 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useContext, useState } from "react"
+import { AuthContext } from "../src/context/AuthContext"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -19,23 +18,25 @@ import { LogIn } from "lucide-react"
 
 export function LoginButton() {
   const [isOpen, setIsOpen] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+  const auth = useContext(AuthContext)
   const { toast } = useToast()
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     const formData = new FormData(e.target as HTMLFormElement)
     const username = formData.get("username") as string
     const password = formData.get("password") as string
-
-    // Use the fixed credentials
-    if (username === "admin@edc" && password === "tenure@2025") {
-      setIsAdmin(true)
+    if (!auth || !auth.login) {
+      toast({
+        title: "Auth Error",
+        description: "Auth context not available.",
+        variant: "destructive",
+      })
+      return
+    }
+    const success = await auth.login(username, password)
+    if (success) {
       setIsOpen(false)
-      // Store admin status in localStorage for persistence
-      localStorage.setItem("isAdmin", "true")
-      // Dispatch a custom event to notify other components
-      window.dispatchEvent(new Event("adminStatusChanged"))
       toast({
         title: "Login successful",
         description: "You are now logged in as an admin.",
@@ -49,11 +50,16 @@ export function LoginButton() {
     }
   }
 
-  const handleLogout = () => {
-    setIsAdmin(false)
-    localStorage.removeItem("isAdmin")
-    // Dispatch a custom event to notify other components
-    window.dispatchEvent(new Event("adminStatusChanged"))
+  const handleLogout = async () => {
+    if (!auth || !auth.logout) {
+      toast({
+        title: "Auth Error",
+        description: "Auth context not available.",
+        variant: "destructive",
+      })
+      return
+    }
+    await auth.logout()
     toast({
       title: "Logged out",
       description: "You have been logged out successfully.",
@@ -62,16 +68,10 @@ export function LoginButton() {
 
   return (
     <>
-      {isAdmin ? (
-        <Button variant="outline" onClick={handleLogout}>
-          Logout (Admin)
-        </Button>
-      ) : (
-        <Button variant="outline" onClick={() => setIsOpen(true)}>
-          <LogIn className="mr-2 h-4 w-4" />
-          Admin Login
-        </Button>
-      )}
+      <Button variant="outline" onClick={() => setIsOpen(true)}>
+        <LogIn className="mr-2 h-4 w-4" />
+        Admin Login
+      </Button>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -92,6 +92,9 @@ export function LoginButton() {
             </div>
             <DialogFooter>
               <Button type="submit">Login</Button>
+              <Button type="button" variant="outline" onClick={handleLogout}>
+                Logout (Admin)
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
