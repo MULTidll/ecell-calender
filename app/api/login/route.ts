@@ -17,7 +17,15 @@ export async function POST(req: NextRequest) {
     const token = jwt.sign({ username, isAdmin: true }, JWT_SECRET, {
       expiresIn: TOKEN_EXPIRY,
     });
-    return NextResponse.json({ success: true, token });
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('adminToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 60 * 60 * 2, // 2 hours
+    });
+    return response;
   }
   return NextResponse.json({ success: false }, { status: 401 });
 }

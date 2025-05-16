@@ -6,23 +6,20 @@ export function AuthProvider({ children }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem('adminToken');
-    if (token) {
-      fetch('/api/validate-token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          setIsAdmin(data.valid);
-          setLoading(false);
-        })
-        .catch(() => setLoading(false));
-    } else {
-      setLoading(false);
+  const checkAdmin = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/validate-token', { method: 'POST' });
+      const data = await res.json();
+      setIsAdmin(data.valid);
+    } catch {
+      setIsAdmin(false);
     }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    checkAdmin();
   }, []);
 
   const login = async (username, password) => {
@@ -32,17 +29,16 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ username, password }),
     });
     const data = await res.json();
-    if (data.success && data.token) {
-      setIsAdmin(true);
-      localStorage.setItem('adminToken', data.token);
+    if (data.success) {
+      await checkAdmin();
       return true;
     }
     return false;
   };
 
-  const logout = () => {
-    setIsAdmin(false);
-    localStorage.removeItem('adminToken');
+  const logout = async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    await checkAdmin(); 
   };
 
   return (

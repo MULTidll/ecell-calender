@@ -4,6 +4,10 @@ import type { NextRequest } from 'next/server';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+function getTokenFromCookies(req: NextRequest) {
+  return req.cookies.get('adminToken')?.value;
+}
+
 function verifyToken(token: string) {
   if (!JWT_SECRET) return false;
   try {
@@ -15,7 +19,7 @@ function verifyToken(token: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const { token } = await req.json();
-  const valid = verifyToken(token);
+  const token = getTokenFromCookies(req);
+  const valid = verifyToken(token || '');
   return NextResponse.json({ valid });
 }
