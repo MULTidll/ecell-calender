@@ -1,6 +1,7 @@
 "use client"
 import { io, Socket } from "socket.io-client"
-import { useState, useEffect } from "react"
+import { useContext, useEffect, useState } from "react"
+import { AuthContext } from "../src/context/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react"
@@ -20,12 +21,13 @@ type Event = {
 export function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState<Event[]>([])
-  const [isAdmin, setIsAdmin] = useState(false) // In a real app, this would come from auth
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const { toast } = useToast()
+  const auth = useContext(AuthContext)
+  const isAdmin = auth && auth.isAdmin
 
   useEffect(() => {
     fetch("/api/events")
@@ -40,7 +42,6 @@ export function CalendarView() {
         )
       })
       .catch(() => setEvents([]))
-    setIsAdmin(localStorage.getItem("isAdmin") === "true")
 
       const socket: Socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
       socket.on("eventsUpdated", () => {
