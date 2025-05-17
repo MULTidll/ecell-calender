@@ -11,7 +11,6 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "E-Cell Calendar",
   description: "Event calendar for E-Cell club members",
-    generator: 'v0.dev'
 }
 
 export const viewport: Viewport = {

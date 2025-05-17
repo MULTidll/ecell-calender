@@ -250,11 +250,12 @@ export function CalendarView() {
           <div className="grid grid-cols-7">
             {calendarDays.map((day, index) => {
               const eventsForDay = day ? getEventsForDate(day) : []
+              const today = new Date()
               const isToday =
                 day &&
-                day.getDate() === new Date().getDate() &&
-                day.getMonth() === new Date().getMonth() &&
-                day.getFullYear() === new Date().getFullYear()
+                day.getDate() === today.getDate() &&
+                day.getMonth() === today.getMonth() &&
+                day.getFullYear() === today.getFullYear()
 
               return (
                 <div
