@@ -29,6 +29,13 @@ export function CalendarView() {
   const auth = useContext(AuthContext)
   const isAdmin = auth && auth.isAdmin
 
+
+  const convertToIST = (serverDate: Date) => {
+    const utcDate = new Date(serverDate);
+    const offsetIST = 5.5 * 60 * 60 * 1000;
+    return new Date(utcDate.getTime() + offsetIST);
+  };
+
   useEffect(() => {
     fetch("/api/events")
       .then(res => res.json())
@@ -37,7 +44,7 @@ export function CalendarView() {
           data.map((event: any) => ({
             ...event,
             id: event._id, 
-            date: new Date(event.date),
+            date: convertToIST(event.date),
           }))
         )
       })
