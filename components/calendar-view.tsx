@@ -31,9 +31,9 @@ export function CalendarView() {
 
 
   const convertToIST = (serverDate: Date) => {
-    const utcDate = new Date(serverDate);
-    const offsetIST = 5.5 * 60 * 60 * 1000;
-    return new Date(utcDate.getTime() + offsetIST);
+    const sgtDate = new Date(serverDate);
+    const offsetIST = 2.5 * 60 * 60 * 1000;
+    return new Date(sgtDate.getTime() + offsetIST);
   };
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export function CalendarView() {
               data.map((event: any) => ({
                 ...event,
                 id: event._id, 
-                date: new Date(event.date),
+                date: convertToIST(event.date),
               }))
             )
           })
@@ -91,7 +91,7 @@ export function CalendarView() {
         {
           ...newEvent,
           id: newEvent._id || newEvent.id,
-          date: new Date(newEvent.date),
+          date: convertToIST(newEvent.date),
         },
       ])
       toast({
@@ -111,7 +111,7 @@ export function CalendarView() {
     setEvents(
       events.map((e) =>
         e.id === (event._id || event.id)
-          ? { ...event, id: event._id || event.id, date: new Date(event.date) }
+          ? { ...event, id: event._id || event.id, date: convertToIST(event.date) }
           : e
       )
     )
@@ -138,23 +138,24 @@ export function CalendarView() {
   }
 
   const handleDateClick = (date: Date) => {
-    const eventsOnDate = events.filter(
-      (event) =>
-        event.date.getDate() === date.getDate() &&
-        event.date.getMonth() === date.getMonth() &&
-        event.date.getFullYear() === date.getFullYear(),
-    )
-
+    const targetIST = convertToIST(date)
+    const eventsOnDate = events.filter((event) => {
+      const eventIST = convertToIST(event.date)
+      return (
+        eventIST.getDate() === targetIST.getDate() &&
+        eventIST.getMonth() === targetIST.getMonth() &&
+        eventIST.getFullYear() === targetIST.getFullYear()
+      );
+    })
+  
     if (eventsOnDate.length > 0) {
-      // Show the first event on this date
       setSelectedEvent(eventsOnDate[0])
       setIsDetailsOpen(true)
     } else if (isAdmin) {
-      // If admin and no events, open dialog to add new event
       setEditingEvent({
         id: "",
         title: "",
-        date: date,
+        date: targetIST,
         time: "12:00",
         description: "",
       })
@@ -197,12 +198,13 @@ export function CalendarView() {
   // Get events for a specific date
   const getEventsForDate = (date: Date) => {
     if (!date) return []
+    const targetIST = convertToIST(date)
 
     return events.filter(
       (event) =>
-        event.date.getDate() === date.getDate() &&
-        event.date.getMonth() === date.getMonth() &&
-        event.date.getFullYear() === date.getFullYear(),
+        event.date.getDate() === targetIST.getDate() &&
+        event.date.getMonth() === targetIST.getMonth() &&
+        event.date.getFullYear() === targetIST.getFullYear(),
     )
   }
 
