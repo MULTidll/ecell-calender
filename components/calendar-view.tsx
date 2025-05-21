@@ -33,7 +33,7 @@ export function CalendarView() {
   const convertToIST = (serverDate: Date) => {
     const sgtDate = new Date(serverDate);
     const offsetIST = 2.5 * 60 * 60 * 1000;
-    return new Date(sgtDate.getTime() + offsetIST);
+    return new Date(sgtDate.getTime() - offsetIST);
   };
 
   useEffect(() => {
