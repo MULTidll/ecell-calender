@@ -18,8 +18,17 @@ type Event = {
   description: string
 }
 
+function parseDate(date: any): Date {
+  if (date instanceof Date) return date
+  if (typeof date === "string" || typeof date === "number") {
+    const parsed = new Date(date)
+    if (!isNaN(parsed.getTime())) return parsed
+  }
+  return new Date()
+}
+
 export function CalendarView() {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState(() => new Date())
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false)
@@ -27,108 +36,145 @@ export function CalendarView() {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const { toast } = useToast()
   const auth = useContext(AuthContext)
-  const isAdmin = auth && auth.isAdmin
+  const isAdmin = !!(auth && auth.isAdmin)
 
-
-  const convertToIST = (serverDate: Date) => {
-    const sgtDate = new Date(serverDate);
-    const offsetIST = 2.5 * 60 * 60 * 1000;
-    return new Date(sgtDate.getTime() - offsetIST);
-  };
+  const convertToIST = (serverDate: any) => {
+    const date = parseDate(serverDate)
+    const offsetIST = 5.5 * 60 * 60 * 1000
+    return new Date(date.getTime() + offsetIST)
+  }
 
   useEffect(() => {
-    fetch("/api/events")
-      .then(res => res.json())
-      .then(data => {
-        setEvents(
-          data.map((event: any) => ({
-            ...event,
-            id: event._id, 
-            date: convertToIST(event.date),
-          }))
-        )
-      })
-      .catch(() => setEvents([]))
+    let isMounted = true
 
-      const socket: Socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
-      socket.on("eventsUpdated", () => {
-        fetch("/api/events")
-          .then(res => res.json())
-          .then(data => {
-            setEvents(
-              data.map((event: any) => ({
-                ...event,
-                id: event._id, 
-                date: convertToIST(event.date),
-              }))
-            )
-          })
-          .catch(() => setEvents([]))
-      })
-
-      return () => {
-        socket.disconnect()
+    const fetchEvents = async () => {
+      try {
+        const res = await fetch("/api/events")
+        if (!res.ok) throw new Error("Failed to fetch events")
+        const data = await res.json()
+        if (!Array.isArray(data)) throw new Error("Invalid events data")
+        if (isMounted) {
+          setEvents(
+            data.map((event: any) => ({
+              ...event,
+              id: event._id || event.id || "",
+              date: convertToIST(event.date),
+              title: event.title || "",
+              time: event.time || "",
+              description: event.description || "",
+            }))
+          )
+        }
+      } catch {
+        if (isMounted) setEvents([])
       }
+    }
+
+    fetchEvents()
+
+    const socket: Socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000")
+    socket.on("eventsUpdated", fetchEvents)
+
+    return () => {
+      isMounted = false
+      socket.disconnect()
+    }
   }, [])
 
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
   }
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
   }
 
-    const handleAddEvent = async (event: Omit<Event, "id">) => {
+  const handleAddEvent = async (event: Omit<Event, "id">) => {
+    try {
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(event),
       })
+      if (!res.ok) throw new Error("Failed to add event")
       const newEvent = await res.json()
-      setEvents([
-        ...events,
+      setEvents((prev) => [
+        ...prev,
         {
           ...newEvent,
-          id: newEvent._id || newEvent.id,
+          id: newEvent._id || newEvent.id || "",
           date: convertToIST(newEvent.date),
+          title: newEvent.title || "",
+          time: newEvent.time || "",
+          description: newEvent.description || "",
         },
       ])
       toast({
         title: "Event added",
         description: `${event.title} has been added to the calendar.`,
       })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to add event.",
+        variant: "destructive",
+      })
+    }
   }
 
-
   const handleUpdateEvent = async (updatedEvent: Event) => {
-    const res = await fetch(`/api/events/${updatedEvent.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedEvent),
-    })
-    const event = await res.json()
-    setEvents(
-      events.map((e) =>
-        e.id === (event._id || event.id)
-          ? { ...event, id: event._id || event.id, date: convertToIST(event.date) }
-          : e
+    try {
+      const res = await fetch(`/api/events/${updatedEvent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedEvent),
+      })
+      if (!res.ok) throw new Error("Failed to update event")
+      const event = await res.json()
+      setEvents((prev) =>
+        prev.map((e) =>
+          e.id === (event._id || event.id)
+            ? {
+                ...event,
+                id: event._id || event.id || "",
+                date: convertToIST(event.date),
+                title: event.title || "",
+                time: event.time || "",
+                description: event.description || "",
+              }
+            : e
+        )
       )
-    )
-    toast({
-      title: "Event updated",
-      description: `${updatedEvent.title} has been updated.`,
-    })
+      toast({
+        title: "Event updated",
+        description: `${updatedEvent.title} has been updated.`,
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update event.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleDeleteEvent = async (eventId: string) => {
-    await fetch(`/api/events/${eventId}`, { method: "DELETE" })
-    setEvents(events.filter((event) => event.id !== eventId))
-    setIsDetailsOpen(false)
-    toast({
-      title: "Event deleted",
-      description: "The event has been removed from the calendar.",
-    })
+    try {
+      const res = await fetch(`/api/events/${eventId}`, { method: "DELETE" })
+      if (!res.ok) throw new Error("Failed to delete event")
+      setEvents((prev) => prev.filter((event) => event.id !== eventId))
+      setIsDetailsOpen(false)
+      toast({
+        title: "Event deleted",
+        description: "The event has been removed from the calendar.",
+      })
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to delete event.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleEditEvent = (event: Event) => {
@@ -145,9 +191,9 @@ export function CalendarView() {
         eventIST.getDate() === targetIST.getDate() &&
         eventIST.getMonth() === targetIST.getMonth() &&
         eventIST.getFullYear() === targetIST.getFullYear()
-      );
+      )
     })
-  
+
     if (eventsOnDate.length > 0) {
       setSelectedEvent(eventsOnDate[0])
       setIsDetailsOpen(true)

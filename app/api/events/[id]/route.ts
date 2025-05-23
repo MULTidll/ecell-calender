@@ -21,9 +21,9 @@ export async function PUT(req, { params }) {
   return NextResponse.json(updated)
 }
 
-export async function DELETE(req, { params }) {
+export async function DELETE(req, context) {
   await connectToDatabase()
-  const { id } = params
+  const { id } = await context.params // <-- await here
   if (!isValidObjectId(id)) {
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 })
   }
